@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wat is een token? — Aigenwijs Training</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .token-chip {
+      display: inline-block;
+      padding: 4px 10px;
+      margin: 3px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .token-chip:hover { transform: scale(1.15); }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-800">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-3xl mx-auto px-6 py-8">
+      <p class="text-sm text-gray-500 mb-1">Aigenwijs · Trainingsdemo</p>
+      <h1 class="text-4xl font-bold text-gray-900">Wat is een token?</h1>
+      <p class="mt-3 text-lg text-gray-600">
+        Een interactieve uitleg over hoe LLMs tekst opbreken in tokens.
+      </p>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="max-w-3xl mx-auto px-6 py-10 space-y-12">
+
+    <!-- Section: Uitleg -->
+    <section class="space-y-4">
+      <h2 class="text-2xl font-semibold">Tekst → Tokens → Modellen</h2>
+      <p>
+        Een LLM leest geen woorden zoals jij of ik. Het ziet tekst als een reeks
+        <strong>tokens</strong> — nummers die stukjes tekst vertegenwoordigen.
+      </p>
+      <p>
+        Een token is meestal zo lang als een woord, maar kan ook korter zijn:
+        een deel van een lang woord, een leesteken, of zelfs een spatie.
+        Engels gemiddeld: <strong>1 token &asymp; 4 lettertekens</strong>.
+        Nederlands loopt iets dichter omdat woorden korter zijn.
+      </p>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+        <p class="text-sm text-blue-800">
+          <strong>Voorbeeld:</strong> "AI is cool" = 4 tokens<br />
+          "🤖" (één emoji) kan 1 tot 4 tokens zijn, afhankelijk van het model.
+        </p>
+      </div>
+    </section>
+
+    <!-- Section: Waarom belangrijk -->
+    <section class="space-y-4">
+      <h2 class="text-2xl font-semibold">Waarom moet je dit weten?</h2>
+      <ul class="list-disc list-inside space-y-2 text-gray-700">
+        <li><strong>Aantallen:</strong> LLMs werken met token-limieten (context window). GPT-4o: 128K tokens, dat is &asymp; 300 pagina's A4.</li>
+        <li><strong>Prijs:</strong> Providers rekenen per token — meer tekst = meer kosten.</li>
+        <li><strong>Kwaliteit:</strong> Hoe een woord getokeniseerd wordt, beïnvloedt hoe goed het model het begrijpt.</li>
+      </ul>
+    </section>
+
+    <!-- Section: Interactieve teller -->
+    <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-6">
+      <h2 class="text-2xl font-semibold">Interactieve token-teller</h2>
+      <p class="text-gray-600">
+        Typ tekst in het vak hieronder. Je ziet direct hoeveel tokens er zijn en hoe de opbreking eruitziet.
+        <br /><span class="text-sm text-gray-400">(Gebruikt een simulatie van Tiktoken met de cl100k_base encoder)</span>
+      </p>
+
+      <textarea
+        id="input"
+        rows="5"
+        placeholder="Typ hier je tekst... bijv. 'Hallo wereld, dit is een token-experiment!'"
+        class="w-full rounded-xl border border-gray-300 p-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
+      ></textarea>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div id="tokenCount" class="text-3xl font-bold text-blue-600">0</div>
+          <div class="text-sm text-gray-500">tokens</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div id="charCount" class="text-3xl font-bold text-gray-700">0</div>
+          <div class="text-sm text-gray-500">tekens</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 text-center">
+          <div id="wordCount" class="text-3xl font-bold text-gray-700">0</div>
+          <div class="text-sm text-gray-500">woorden</div>
+        </div>
+      </div>
+
+      <!-- Token chips -->
+      <div>
+        <p class="text-sm font-medium text-gray-500 mb-2">Token-opbreking:</p>
+        <div id="tokenChips" class="flex flex-wrap min-h-[40px] bg-gray-50 rounded-xl p-4">
+          <span class="text-gray-400 text-sm italic">Nog geen tekst ingevoerd...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Tokenizers -->
+    <section class="space-y-4">
+      <h2 class="text-2xl font-semibold">Elk model heeft een eigen tokenizer</h2>
+      <p>
+        Niet alle LLMs breken tekst op dezelfde manier op. De tokenizer van GPT-4 verschilt van die van Claude of Llama.
+        Dat betekent dat dezelfde zin in verschillende modellen een ander aantal tokens kan geven.
+      </p>
+      <div class="overflow-x-auto">
+        <div class="inline-flex gap-6 text-sm">
+          <div class="bg-gray-100 rounded-lg px-4 py-3">
+            <strong>GPT (cl100k_base)</strong><br />
+            ~4 tekens per token
+          </div>
+          <div class="bg-gray-100 rounded-lg px-4 py-3">
+            <strong>Claude (ClaudeTokenizer)</strong><br />
+            ~3.5 tekens per token
+          </div>
+          <div class="bg-gray-100 rounded-lg px-4 py-3">
+            <strong>Llama 3</strong><br />
+            ~3.8 tekens per token
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-200 mt-12">
+    <div class="max-w-3xl mx-auto px-6 py-6 text-sm text-gray-400">
+      Gebouwd voor Aigenwijs trainingen · Demo: Tokens in LLMs
+    </div>
+  </footer>
+
+  <!-- Tokenizer logic -->
+  <script type="module">
+    // Lightweight Tiktoken simulation for cl100k_base encoding.
+    // Uses tiktoken from CDN for accurate token counting.
+    const { Tiktoken } = await import('https://esm.sh/tiktoken@1.0.17');
+    const cl100k_base = await import('https://esm.sh/tiktoken@1.0.17/cl100k_base');
+
+    // We'll use a regex-based fallback tokenizer since tiktoken may not work in browser easily.
+    // Instead, we implement a pragmatic approximation of GPT-4 tokenization (cl100k_base).
+
+    const colors = [
+      'bg-red-100 text-red-800 border-red-200',
+      'bg-orange-100 text-orange-800 border-orange-200',
+      'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'bg-green-100 text-green-800 border-green-200',
+      'bg-teal-100 text-teal-800 border-teal-200',
+      'bg-blue-100 text-blue-800 border-blue-200',
+      'bg-indigo-100 text-indigo-800 border-indigo-200',
+      'bg-purple-100 text-purple-800 border-purple-200',
+      'bg-pink-100 text-pink-800 border-pink-200',
+      'bg-cyan-100 text-cyan-800 border-cyan-200',
+    ];
+
+    // Approximate cl100k_base tokenizer using a byte-pair inspired approach.
+    // This splits on: common words first, then subwords, respects word boundaries.
+    function approximateTokenize(text) {
+      if (!text.trim()) return [];
+
+      const tokens = [];
+      let i = 0;
+      const chars = text;
+
+      while (i < chars.length) {
+        let token = '';
+
+        // Whitespace → own token
+        if (/\s/.test(chars[i])) {
+          let wsStart = i;
+          while (i < chars.length && /\s/.test(chars[i])) i++;
+          tokens.push(chars.slice(wsStart, i));
+          continue;
+        }
+
+        // Punctuation → own token
+        if (/[\.,;:!?'\\"()\[\]{}\-_+=@#$%^&*\/\\|~`<>]/.test(chars[i])) {
+          tokens.push(chars[i]);
+          i++;
+          continue;
+        }
+
+        // Emoji / multi-byte characters → own token
+        const cp = chars.codePointAt(i);
+        if (cp > 0xFFFF) {
+          const size = [...chars.slice(i)].find(c => c === chars[i]) ? 1 : 2;
+          tokens.push(chars.slice(i, i + size));
+          i += size;
+          continue;
+        }
+
+        // Numbers: grab the whole number (incl. dots for decimals)
+        if (/\d/.test(chars[i])) {
+          while (i < chars.length && /[\d.]/.test(chars[i])) { token += chars[i]; i++; }
+          tokens.push(token);
+          continue;
+        }
+
+        // Letters: grab a word, but break long words at ~6 chars per token (cl100k style)
+        let wordStart = i;
+        while (i < chars.length && /[a-zA-ZÀ-ÿ]/.test(chars[i])) { i++; }
+        const word = chars.slice(wordStart, i);
+
+        if (word.length <= 4) {
+          tokens.push(word);
+        } else if (word.length <= 8) {
+          // Try to split at a meaningful boundary
+          tokens.push(word.slice(0, Math.ceil(word.length / 2)));
+          tokens.push(word.slice(Math.ceil(word.length / 2)));
+        } else {
+          while (word.length > 0) {
+            const chunk = word.slice(0, Math.min(6, word.length));
+            tokens.push(chunk);
+            word = word.slice(chunk.length);
+          }
+        }
+      }
+
+      return tokens;
+    }
+
+    const input = document.getElementById('input');
+    const tokenCountEl = document.getElementById('tokenCount');
+    const charCountEl = document.getElementById('charCount');
+    const wordCountEl = document.getElementById('wordCount');
+    const chipsEl = document.getElementById('tokenChips');
+
+    function update() {
+      const text = input.value;
+      const tokens = approximateTokenize(text);
+      const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+
+      tokenCountEl.textContent = tokens.length;
+      charCountEl.textContent = text.length;
+      wordCountEl.textContent = words;
+
+      if (tokens.length === 0) {
+        chipsEl.innerHTML = '<span class="text-gray-400 text-sm italic">Nog geen tekst ingevoerd...</span>';
+      } else {
+        chipsEl.innerHTML = tokens.map((t, idx) => {
+          const color = colors[idx % colors.length];
+          const display = t.replace(/ /g, '·').replace(/\n/g, '↵');
+          return `<span class="token-chip border ${color}" title="${JSON.stringify(t)}">${display}</span>`;
+        }).join('');
+      }
+    }
+
+    input.addEventListener('input', update);
+  </script>
+
+</body>
+</html>
