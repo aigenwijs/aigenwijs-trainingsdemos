@@ -28,6 +28,17 @@
   a.knop { display:inline-flex; align-items:center; font-weight:600; font-size:1rem; border-radius:999px; padding:.7rem 1.2rem; min-height:44px; text-decoration:none; }
   button:focus-visible, a:focus-visible { outline:3px solid var(--paars); outline-offset:3px; }
   .status { font-size:.95rem; color:var(--gedempt); min-height:1.5em; }
+  [hidden] { display:none !important; }
+  .hint { display:flex; gap:.6rem; align-items:flex-start; font-size:.98rem; color:var(--gedempt); margin:1rem 0 .6rem; }
+  .hint svg { flex:none; width:1.2rem; height:1.2rem; margin-top:.2rem; color:var(--paars); }
+  .hint strong { color:var(--inkt); font-weight:600; }
+  #instructie { border:1.5px solid var(--lijn); border-radius:1rem; padding:0 1.25rem; }
+  #instructie[contenteditable="true"] { cursor:text; caret-color:var(--paars); }
+  #instructie[contenteditable="true"]:hover { border-color:#B9B5C2; }
+  #instructie[contenteditable="true"]:focus { outline:none; border-color:var(--paars); box-shadow:0 0 0 3px rgba(113,0,246,.14); }
+  ::selection { background:rgba(113,0,246,.18); }
+  .papier { margin-top:1.25rem; font-size:.98rem; color:var(--gedempt); }
+  .papier button, .papier a { font:inherit; font-weight:600; color:var(--inkt); background:none; border:0; padding:0; min-height:0; border-radius:0; text-decoration:underline; text-underline-offset:.18em; cursor:pointer; }
   section { padding: 1.5rem 0 .25rem; border-bottom:1px solid var(--lijn); }
   section:last-of-type { border-bottom:0; }
   h2 { font-family:"Sora",system-ui,sans-serif; font-weight:600; font-size:1.25rem; line-height:1.3; margin:0 0 .6rem; }
@@ -42,8 +53,9 @@
   footer a { color:var(--inkt); }
   @media (prefers-reduced-motion: no-preference) { html { scroll-behavior:smooth; } }
   @media print {
-    .acties, .status { display:none; }
+    .acties, .status, .hint, .papier { display:none; }
     .acties { position:static; }
+    #instructie { border:0; padding:0; }
     body { font-size:10.5pt; line-height:1.45; }
     .wrap { max-width:none; padding:0; }
     section { break-inside:avoid; padding:.6rem 0 0; }
@@ -56,15 +68,18 @@
     <img class="logo" src="aigenwijs-logo.svg" alt="Aigenwijs" width="107" height="42">
   </header>
   <main>
-    <p class="label">Concept om samen te beoordelen</p>
+    <p class="label">Concept om zelf aan te passen</p>
     <h1>Vaste <em>instructie</em> voor een CBS-woordvoerder</h1>
-    <p class="intro">Lees hem door. Wat klopt, wat mist, en wat zou jij nooit zo zeggen? Pas hem aan tot hij bij jullie werk past en zet jullie versie daarna in je AI-tool, bijvoorbeeld als instructie van een project.</p>
+    <p class="intro">Lees hem door. Wat klopt, wat mist, en wat zou jij nooit zo zeggen? Pas de tekst hieronder aan tot hij bij jouw werk past. Kopieer daarna jouw versie naar je AI-tool, bijvoorbeeld als instructie van een project.</p>
     <div class="acties">
       <button class="primair" id="kopieer" type="button">Kopieer de instructie</button>
-      <button class="tweede" id="print" type="button">Print</button>
-      <a class="tweede knop" href="instructie.pdf" download>Download pdf</a>
+      <button class="tweede" id="herstel" type="button" hidden>Zet origineel terug</button>
       <span class="status" id="status" role="status" aria-live="polite"></span>
     </div>
+    <p class="hint" id="hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      <span><strong>Klik in de tekst en typ.</strong> <span id="bewaard">Je aanpassingen blijven in deze browser bewaard. Niemand anders ziet ze.</span></span>
+    </p>
     <article id="instructie">
 <section>
 <h2>Wie ik ben</h2>
@@ -105,39 +120,225 @@
 <ul><li>Mis je iets om het goed te doen, vraag het.</li><li>Spreek me tegen als mijn formulering verder gaat dan de cijfers.</li><li>Sluit elk antwoord met cijfers af met een lijst "Te controleren": elk cijfer met zijn bron.</li><li>Ik controleer alles voordat het de deur uitgaat.</li></ul>
 </section>
     </article>
+    <p class="papier">Liever op papier? <button id="print" type="button">Print deze versie</button> of <a href="instructie.pdf" download>download het origineel als pdf</a>.</p>
   </main>
   <footer>
     <p>Geschreven door Aigenwijs als voorbeeld voor de training van 15 oktober 2026, op basis van openbare informatie van het CBS. Dit is geen document van het CBS. Vragen? <a href="mailto:hallo@aigenwijs.com">hallo@aigenwijs.com</a></p>
   </footer>
 </div>
 <script>
-  function tekst() {
-    var uit = [];
-    document.querySelectorAll('#instructie section').forEach(function (s) {
-      uit.push(s.querySelector('h2').textContent + ':');
-      s.querySelectorAll('p, li').forEach(function (el) {
-        uit.push((el.tagName === 'LI' ? '- ' : '') + el.textContent.trim());
-      });
-      uit.push('');
-    });
-    return uit.join('\n').trim() + '\n';
-  }
+(function () {
+  'use strict';
+  var SLEUTEL = 'aigenwijs-cbs-instructie-v1';
+  var art = document.getElementById('instructie');
   var status = document.getElementById('status');
+  var bewaard = document.getElementById('bewaard');
+  var herstel = document.getElementById('herstel');
+  var BLOK = /^(H[1-6]|P|LI|DIV|SECTION|UL|OL|ARTICLE|BLOCKQUOTE)$/;
+  var STANDAARD = bewaard.textContent;
+
+  function heeftBlokKind(el) {
+    for (var i = 0; i < el.children.length; i++) if (BLOK.test(el.children[i].tagName)) return true;
+    return false;
+  }
+  function tekstVan(el) {
+    var k = el.cloneNode(true);
+    Array.prototype.forEach.call(k.querySelectorAll('br'), function (br) { br.replaceWith('\n'); });
+    return k.textContent;
+  }
+
+  // De tekst op de pagina als lijst blokken: h = kop, p = alinea, li = punt, open = invulplek.
+  function model() {
+    var uit = [];
+    function voeg(soort, ruw) {
+      ruw.split('\n').forEach(function (r) {
+        r = r.replace(/\s+/g, ' ').trim();
+        if (r) uit.push({ s: soort, t: r });
+      });
+    }
+    function loop(el) {
+      var los = '';
+      function leeg() { if (los.trim()) voeg('p', los); los = ''; }
+      Array.prototype.forEach.call(el.childNodes, function (n) {
+        if (n.nodeType === 3) { los += n.nodeValue; return; }
+        if (n.nodeType !== 1) return;
+        if (n.tagName === 'BR') { los += '\n'; return; }
+        if (!BLOK.test(n.tagName)) { los += tekstVan(n); return; }
+        leeg();
+        if (heeftBlokKind(n)) { loop(n); return; }
+        var soort = /^H\d$/.test(n.tagName) ? 'h' : n.tagName === 'LI' ? 'li' : (n.classList.contains('open') ? 'open' : 'p');
+        voeg(soort, tekstVan(n));
+      });
+      leeg();
+    }
+    loop(art);
+    return uit;
+  }
+
+  function alsTekst(m) {
+    var r = [];
+    m.forEach(function (b) {
+      if (b.s === 'h') { if (r.length) r.push(''); r.push(b.t.replace(/:\s*$/, '') + ':'); }
+      else if (b.s === 'li') r.push('- ' + b.t);
+      else r.push(b.t);
+    });
+    return r.join('\n').trim() + '\n';
+  }
+
+  function vul(el, t) {
+    var kop = /^(Wel|Niet):/.exec(t);
+    if (kop) {
+      var s = document.createElement('strong'); s.textContent = kop[0]; el.appendChild(s);
+      t = t.slice(kop[0].length);
+    }
+    var re = /\[[^\]]{1,80}(?:invullen|aanvullen)[^\]]{0,80}\]|\[(?:in|aan)vullen[^\]]{0,80}\]/gi, i = 0, x;
+    while ((x = re.exec(t))) {
+      if (x.index > i) el.appendChild(document.createTextNode(t.slice(i, x.index)));
+      var sp = document.createElement('span'); sp.className = 'invul'; sp.textContent = x[0]; el.appendChild(sp);
+      i = x.index + x[0].length;
+    }
+    if (i < t.length) el.appendChild(document.createTextNode(t.slice(i)));
+  }
+
+  // Bouwt de pagina op uit blokken. Alleen tekst, nooit HTML uit de opslag.
+  function bouw(m) {
+    art.textContent = '';
+    var sec = null, ul = null;
+    function sectie() {
+      if (!sec) { sec = document.createElement('section'); art.appendChild(sec); }
+      return sec;
+    }
+    m.forEach(function (b) {
+      if (b.s === 'h') {
+        sec = document.createElement('section'); art.appendChild(sec); ul = null;
+        var h = document.createElement('h2'); h.textContent = b.t; sec.appendChild(h);
+        return;
+      }
+      if (b.s === 'li') {
+        if (!ul) { ul = document.createElement('ul'); sectie().appendChild(ul); }
+        var li = document.createElement('li'); vul(li, b.t); ul.appendChild(li);
+        return;
+      }
+      ul = null;
+      var p = document.createElement('p');
+      if (b.s === 'open') { p.className = 'open'; p.textContent = b.t; } else { vul(p, b.t); }
+      sectie().appendChild(p);
+    });
+  }
+
+  function geldig(b) {
+    return b && typeof b.t === 'string' && b.t.length > 0 && b.t.length < 5000 &&
+      (b.s === 'h' || b.s === 'p' || b.s === 'li' || b.s === 'open');
+  }
+  function lees() {
+    try {
+      var m = JSON.parse(localStorage.getItem(SLEUTEL) || 'null');
+      if (!Array.isArray(m)) return null;
+      m = m.filter(geldig).slice(0, 400);
+      return m.length ? m : null;
+    } catch (e) { return null; }
+  }
+  function schrijf(m) {
+    try { localStorage.setItem(SLEUTEL, JSON.stringify(m)); return true; } catch (e) { return false; }
+  }
+  function wis() { try { localStorage.removeItem(SLEUTEL); } catch (e) {} }
+  function gelijk(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+  var origineel = model();
+  var aangepast = false;
+
+  function toon(isAangepast, opgeslagen) {
+    aangepast = isAangepast;
+    herstel.hidden = !isAangepast;
+    if (!isAangepast) herstelRust();
+    if (!isAangepast) bewaard.textContent = STANDAARD;
+    else if (opgeslagen) bewaard.textContent = 'Jouw versie is bewaard in deze browser. Niemand anders ziet hem.';
+    else bewaard.textContent = 'Bewaren lukt niet in deze browser. Kopieer jouw versie voordat je de pagina sluit.';
+  }
+
+  var vuil = false;
+  function verwerk() {
+    if (!vuil) return;
+    vuil = false;
+    var m = model();
+    if (gelijk(m, origineel)) { wis(); toon(false, true); }
+    else { toon(true, schrijf(m)); }
+  }
+  var wacht = null;
+  function straks() { vuil = true; clearTimeout(wacht); wacht = setTimeout(verwerk, 400); }
+
+  // Bewerkbaar maken
+  art.contentEditable = 'true';
+  art.spellcheck = true;
+  art.setAttribute('role', 'textbox');
+  art.setAttribute('aria-multiline', 'true');
+  art.setAttribute('aria-label', 'De instructie. Je kunt de tekst aanpassen.');
+  art.setAttribute('aria-describedby', 'hint');
+
+  var eerder = lees();
+  if (eerder && !gelijk(eerder, origineel)) { bouw(eerder); toon(true, true); }
+
+  art.addEventListener('input', function () { status.textContent = ''; straks(); });
+  art.addEventListener('blur', function () { clearTimeout(wacht); verwerk(); });
+  window.addEventListener('pagehide', function () { clearTimeout(wacht); verwerk(); });
+
+  // Plakken als platte tekst, zodat er geen opmaak van elders meekomt
+  art.addEventListener('paste', function (e) {
+    var data = e.clipboardData || window.clipboardData;
+    if (!data) return;
+    e.preventDefault();
+    var t = data.getData('text/plain') || data.getData('Text') || '';
+    var gelukt = false;
+    try { gelukt = document.execCommand('insertText', false, t); } catch (err) {}
+    if (!gelukt) {
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        var r = sel.getRangeAt(0); r.deleteContents(); r.insertNode(document.createTextNode(t)); r.collapse(false);
+      }
+      straks();
+    }
+  });
+  art.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  // Kopieren
   function meld(t) { status.textContent = t; }
   document.getElementById('kopieer').addEventListener('click', function () {
+    clearTimeout(wacht); verwerk();
+    var t = alsTekst(model());
+    var klaar = aangepast ? 'Jouw versie is gekopieerd. Plak hem in je AI-tool.' : 'Gekopieerd. Plak hem in je AI-tool.';
     function terugval() {
       var ta = document.createElement('textarea');
-      ta.value = tekst(); ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); meld('Gekopieerd. Plak hem in je AI-tool.'); }
+      try { document.execCommand('copy'); meld(klaar); }
       catch (e) { meld('Kopiëren lukt niet. Selecteer de tekst hieronder.'); }
       document.body.removeChild(ta);
     }
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(tekst()).then(function () { meld('Gekopieerd. Plak hem in je AI-tool.'); }, terugval);
+      navigator.clipboard.writeText(t).then(function () { meld(klaar); }, terugval);
     } else { terugval(); }
   });
+
+  // Origineel terugzetten, in twee stappen (zonder pop-up)
+  var zeker = false, zekerTimer = null;
+  function herstelRust() { zeker = false; clearTimeout(zekerTimer); herstel.textContent = 'Zet origineel terug'; }
+  herstel.addEventListener('click', function () {
+    if (!zeker) {
+      zeker = true; herstel.textContent = 'Zeker weten? Klik nog een keer';
+      meld('Jouw aanpassingen verdwijnen dan.');
+      zekerTimer = setTimeout(function () { herstelRust(); meld(''); }, 5000);
+      return;
+    }
+    clearTimeout(wacht);
+    bouw(origineel); wis(); toon(false, true);
+    meld('Het origineel staat er weer.');
+  });
+
   document.getElementById('print').addEventListener('click', function () { window.print(); });
+
+  // Voor de test
+  window.__instructie = { tekst: function () { return alsTekst(model()); }, model: model };
+})();
 </script>
 </body>
 </html>
